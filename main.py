@@ -1,104 +1,105 @@
-import os
-import pydicom
-import cv2
+import shutil
+
+import tensorflow as tf
+import inputData
+import model
 import numpy as np
-import xml
-in_path=''
-in_path_1_xml=""
-out_path=''
-files = os.listdir(in_path)
-num_sum=0
-num=0
-for strx in files:
-    num_sum=num_sum+1
-for strx in files:
-    num = num + 1
-    filename_in_path = in_path + strx
-    if(filename_in_path.find('.dcm')!= -1 and filename_in_path.find('\.')==-1):
-        ds = pydicom.read_file(filename_in_path)  #读取.dcm文件
-        strx = strx.strip('.dcm')
-        filename_out_path=out_path+strx+'.jpg'
-        img=np.array
-        img = ds.pixel_array  # 提取图像信息
-        img_SeriesInstanceUid=ds.SeriesInstanceUID
-        img=(((img-np.min(img))/(np.max(img)-np.min(img)))*255).astype('uint8')
-cv2.imwrite(filename_out_path,img,[int(cv2.IMWRITE_JPEG_QUALITY), 100])
-in_path_files = os.listdir(in_path_1_xml)
-#######  将路径下的DICOM图片读取出来并转换为JPG，并保存到指定路径 ，匹配出每个病例的DICOM文件所对应的XML文件   #########
-for route in in_path_files:
-    in_path_2_media = in_path_1_xml + route + '\\'
-    if(in_path_2_media.find('._')== -1):
-        in_path_2_m = os.listdir(in_path_2_media)
-        for in_path_2 in in_path_2_m:
-            route_xml = in_path_2_media + in_path_2
-            # print(route_xml)
-            instead = route_xml
-            dom = xml.dom.minidom.parse(instead)
-            root = dom.documentElement
-       SeriesInstanceUid = root.getElementsByTagName('SeriesInstanceUid')
-            if (len(SeriesInstanceUid) != 0):
-                for value_series in SeriesInstanceUid:
-    if(value_series.firstChild.data==img_SeriesInstanceUid):
-          xml_name=route_xml
-          flag_find_xml=0
-          print(xml_name)
-          break
-            if(flag_find_xml==0):
-                break
-        if (flag_find_xml == 0):
-            break
-############################   匹配出每个病例的DICOM文件所对应的XML文件，  读取XML文件的各项信息，并提取出医生标注的肺结节相关信息，并与DICOM中的图片号匹配起来，保存为TXT文件(new)   ###############################
-num=0
-instead=xml_name
-dom = xml.dom.minidom.parse(instead)
-root = dom.documentElement
-itemlist3 = root.getElementsByTagName('xCoord')
-itemlist4 = root.getElementsByTagName('yCoord')
-itemlist5 = root.getElementsByTagName('readingSession')
-x_cor=[]
-y_cor=[]
-tmp = []
-i=0
-j=0
-if os.path.exists(new_txt_root):
-    os.remove(new_txt_root)  # 删除文件
-if os.path.exists(tmp_root):
-    os.remove(tmp_root)  # 删除文件
-for itemlist5_1 in itemlist5:
-   itemlist5_1_1=itemlist5_1.getElementsByTagName('unblindedReadNodule')
-   for itemlist5_1_1_1 in itemlist5_1_1:
-itemlist5_1_1_1_maglignance=itemlist5_1_1_1.getElementsByTagName('malignancy')
-if len(itemlist5_1_1_1_maglignance)>=1:
-      malignancy=itemlist5_1_1_1_maglignance[0]
-      if malignancy.firstChild.data !='3':
-        ROI_list=itemlist5_1_1_1.getElementsByTagName('roi')
-        for ROI in ROI_list:
-        inclusion_list=ROI.getElementsByTagName('inclusion')
-        imageSOP_UID_list= ROI.getElementsByTagName('imageSOP_UID')
-          xCoord_list = ROI.getElementsByTagName('xCoord')
-          yCoord_list = ROI.getElementsByTagName('yCoord')
-          for imageSOP_UID in imageSOP_UID_list:
-              i = 0
-              x_cor = []
-              y_cor = []
-              if inclusion_list[i].firstChild.data=='TRUE':
-                  num = 0
-                  tmp=[]
-                  for strx in files:
-                     num = num + 1
-                     filename_in_path = in_path + strx
-if (filename_in_path.find('.dcm') != -1 and filename_in_path.find('\.')==-1):
-    ds = pydicom.read_file(filename_in_path)
-    symbol = ds.SOPInstanceUID
-    if (imageSOP_UID.firstChild.data == symbol):
-         flag_malig_all_3 = 1
-         j=j+1
-         tmp.append(j)
-         tmp.append(strx[0:6])
-         tmp.append(str(symbol))
-         mp.append(int(malignancy.firstChild.data))
-         tmp.append(' ')
-         change=" ".join('%s' %id for id in tmp)
-         with open(tmp_root,'a') as file:
-             file.write(change+'\n')
-             tmp=[]
+import os
+
+def run_training():
+    #result=0
+    #print("****最大值清0********")
+    global data_dir,model_save_dir,log_tensorboard,test_dir,batch_size_set,input_img_size,capacity,information_save_root,AR,TPR,TNR,MAX_AR
+    AR=0
+    MAX_AR=0
+    TPR=0
+    TNR=0
+    train = tf.Graph()
+    with train.as_default():
+        image, label = inputData.get_files(data_dir)
+        image_batches, label_batches = inputData.get_batches(image, label, input_img_size, input_img_size, batch_size_set, capacity)
+        keep_prob_train = tf.placeholder(tf.float32)
+        p = model.mmodel(image_batches, batch_size_set,keep_prob_train,
+    True)
+        cost = model.loss(p, label_batches)
+        train_op = model.training(cost, 0.001)
+        acc = model.get_accuracy(p, label_batches)
+        summary_op = tf.summary.merge_all()
+        with tf.Session(graph=train) as sess:
+            sess.run(tf.global_variables_initializer())
+            sess.run(tf.local_variables_initializer())
+# 这行是为了和tf.train.slice_input_producer中的设置对应起来
+#因为tf.train.slice_input_producer中设置只读取13次数据，因此需要初始化局部变量num_epochs
+            saver = tf.train.Saver(max_to_keep=1)
+            coord = tf.train.Coordinator()
+            threads = tf.train.start_queue_runners(sess=sess, coord=coord)
+            train_writer = tf.summary.FileWriter(log_tensorboard, sess.graph)
+            try:
+                for step in np.arange(1000000):
+                    print(step)
+                    if coord.should_stop():
+                        break
+                    _, train_acc, train_loss,summary = sess.run([train_op, acc, cost,summary_op],feed_dict={keep_prob_train:0.5})
+          print("loss:{} accuracy:{}".format(train_loss, train_acc))
+        train_writer.add_summary(summary, step)
+        if(step>3000 and step%500==0):
+            check = os.path.join(model_save_dir, "model.ckpt")
+            saver.Ssave(sess, check, global_step=step)
+            np.test(test_dir)
+            if(TP + FP + TN + FN !=0):
+               AR = (TP + TN) / (TP + FP + TN + FN)  # 准确率
+               if (TP + FN != 0):
+                  TPR = TP / (TP + FN)  # 敏感性
+                  if (TN + FP != 0):
+                     TNR = TN / (TN + FP)  # 特异性
+                     print("****test---result  ****")
+                        print("TP:", TP)
+                        print("FP:", FP)
+                        print("TN:", TN)
+                        print("FN:", FN)
+                        print("AR:", AR)
+                        print("TPR:", TPR)
+                        print("TNR:", TNR)
+                        print("*****test---result     ***")
+        with open(information_save_root, 'a') as file:file.write("*******\n")
+        file.write("训练集迭代步数："+str(step)+"    训练集的准确率："+str(train_acc)+"    训练集的损失值："+str(train_loss)+"\n")
+        file.write("TP:" + str(TP) + "    FP:" + str(FP) + "    TN:" + str(TN) + "    FN:" + str(FN) +"\n")
+        file.write("AR:" + str(AR) + "    TPR:" + str(TPR) + "    TNR:" + str(TNR) + "\n")
+        with open(information_save_root_AR, 'a') as file2:
+             file2.write(str(AR)+"  ")
+             with open(information_save_root_TPR, 'a') as file3:
+                 file3.write(str(TPR)+"  ")
+             with open(information_save_root_TNR, 'a') as file4:
+                 file4.write(str(TNR)+"  ")
+             with open(information_save_root_TRAIN_ACC, 'a') as file5:
+                 file5.write(str(train_acc)+"  ")
+                 if(AR>MAX_AR):
+                    MAX_AR = AR
+                    path_model_save_1="G:/lung_cancer/32_32/model_save/model.ckpt-"+str(step)+".data-00000-of-00001"
+                    path_model_save_2="G:/lung_cancer/32_32/note/best_model/model.ckpt-"+str(step)+".data-00000-of-00001"
+                    path_model_save_3="G:/lung_cancer/32_32/model_save/model.ckpt-"+str(step)+".index"
+                    path_model_save_4="G:/lung_cancer/32_32/note/best_model/model.ckpt-"+str(step)+".index"
+                    path_model_save_5="G:/lung_cancer/32_32/model_save/model.ckpt-"+str(step)+".meta"
+                    path_model_save_6="G:/lung_cancer/32_32/note/best_model/model.ckpt-"+str(step)+".meta"
+                    path_model_save_7="G:/lung_cancer/32_32/model_save/checkpoint"
+                    path_model_save_8="G:/lung_cancer/32_32/note/best_model/checkpoint"
+                 if (os.path.exists(path_model_save_8)):
+                    shutil.rmtree(best_model_dir)
+                    os.mkdir(best_model_dir)
+                    if (os.path.exists(BEST_NOTE)):
+                        os.remove(BEST_NOTE)
+                        with open(BEST_NOTE, 'a') as file6:file6.write("**********\n")
+                        file6.write("训练集迭代步数："+str(step)+"    训练集的准确率"+str(train_acc)+"    训练集的损失值："+str(train_loss)+"\n")
+                        file6.write("TP:" + str(TP) + "    FP:" + str(FP) + "    TN:" + str(TN) + "    FN:" + str(FN) +"\n")
+                        file6.write("AR:" + str(AR) + "    TPR:" + str(TPR) + "    TNR:" + str(TNR) + "\n")
+        if (os.path.exists(path_model_save_7)):
+            shutil.copyfile(path_model_save_7, path_model_save_8)
+            shutil.copyfile(path_model_save_1,path_model_save_2)
+            shutil.copyfile(path_model_save_3,path_model_save_4)
+            shutil.copyfile(path_model_save_5,path_model_save_6)
+            except  tf.errors.OutOfRangeError:
+            print("train--Done!!!")
+            finally:
+            coord.request_stop()
+            coord.join(threads)
+            train_writer.close()
